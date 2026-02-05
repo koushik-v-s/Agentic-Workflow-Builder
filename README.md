@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-# Agentic-Workflow-Builder
-Agentic workflow builder
-=======
+
 # Agentic Workflow Builder
 
 <div align="center">

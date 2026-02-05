@@ -1,0 +1,101 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workflow {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  userId       String?  @map("user_id")
+  retryBudget  Int      @default(3) @map("retry_budget")
+  costBudget   Decimal? @map("cost_budget") @db.Decimal(10, 4)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  steps      WorkflowStep[]
+  executions WorkflowExecution[]
+
+  @@map("workflows")
+}
+
+model WorkflowStep {
+  id                String  @id @default(uuid())
+  workflowId        String  @map("workflow_id")
+  stepOrder         Int     @map("step_order")
+  name              String
+  modelId           String  @map("model_id")
+  promptTemplate    String  @map("prompt_template") @db.Text
+  completionCriteria Json   @map("completion_criteria")
+  retryLimit        Int     @default(3) @map("retry_limit")
+  contextMode       String  @default("full") @map("context_mode")
+  contextSelector   String? @map("context_selector") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  workflow       Workflow          @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stepExecutions StepExecution[]
+
+  @@unique([workflowId, stepOrder])
+  @@map("workflow_steps")
+}
+
+model WorkflowExecution {
+  id            String    @id @default(uuid())
+  workflowId    String    @map("workflow_id")
+  status        String    // pending, running, completed, failed, cancelled
+  startedAt     DateTime  @default(now()) @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  totalCost     Decimal   @default(0) @map("total_cost") @db.Decimal(10, 4)
+  totalTokens   Int       @default(0) @map("total_tokens")
+  errorMessage  String?   @map("error_message") @db.Text
+  metadata      Json?
+
+  workflow       Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stepExecutions StepExecution[]
+
+  @@map("workflow_executions")
+}
+
+model StepExecution {
+  id                String    @id @default(uuid())
+  executionId       String    @map("execution_id")
+  stepId            String    @map("step_id")
+  stepOrder         Int       @map("step_order")
+  status            String    // pending, running, completed, failed, retrying
+  promptSent        String    @map("prompt_sent") @db.Text
+  responseReceived  String?   @map("response_received") @db.Text
+  contextUsed       String?   @map("context_used") @db.Text
+  completionCheck   Json?     @map("completion_check")
+  retryCount        Int       @default(0) @map("retry_count")
+  startedAt         DateTime? @map("started_at")
+  completedAt       DateTime? @map("completed_at")
+  cost              Decimal?  @db.Decimal(10, 4)
+  tokensUsed        Int?      @map("tokens_used")
+  errorMessage      String?   @map("error_message") @db.Text
+
+  execution WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  step      WorkflowStep      @relation(fields: [stepId], references: [id])
+
+  @@map("step_executions")
+}
+
+model Model {
+  id               String  @id
+  provider         String
+  displayName      String  @map("display_name")
+  costPer1kInput   Decimal @map("cost_per_1k_input") @db.Decimal(10, 6)
+  costPer1kOutput  Decimal @map("cost_per_1k_output") @db.Decimal(10, 6)
+  contextWindow    Int     @map("context_window")
+  isAvailable      Boolean @default(true) @map("is_available")
+  capabilities     Json?
+
+  @@map("models")
+}
